@@ -1,0 +1,97 @@
+import os
+import asyncio
+from pyrogram import Client, filters
+from pytgcalls import PyTgCalls, idle 
+import string
+from pytgcalls.types import AudioPiped
+from pyrogram.types import Message
+from config import Config
+import ffmpeg
+class config:
+  API_ID =  15963788
+  API_HASH = ("939d227991d9a2f759a17f6a3c9cf494")
+  BOT_TOKEN = ("7744620723:AAF4ebuPViF_Us76CEOC9MTPInXB311apug")
+SESSION_NAME = "MusicBotSession"
+
+app = Client("bot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN)
+call_py = PyTgCalls(app)
+
+queue = []  # Queue for music
+
+
+@app.on_message(filters.command("play"))
+async def play(client: Client, message: Message):
+    if len(queue) == 0:
+        await message.reply("No songs in the queue. Use /play <song> to add.")
+        return
+    chat_id = message.chat.id
+    song = queue[0]
+    await call_py.join_group_call(chat_id, AudioPiped(song))
+    await message.reply(f"Playing {song} in voice chat.")
+
+@app.on_message(filters.command("skip"))
+async def skip(client: Client, message: Message):
+    if len(queue) > 1:
+        queue.pop(0)
+        song = queue[0]
+        chat_id = message.chat.id
+        await call_py.change_stream(chat_id, AudioPiped(song))
+        await message.reply(f"Skipped! Now playing {song}.")
+    else:
+        await message.reply("No more songs in the queue.")
+
+@app.on_message(filters.command("playforce"))
+async def playforce(client: Client, message: Message):
+    song = message.text.split(" ", 1)[1]
+    queue.insert(0, song)
+    chat_id = message.chat.id
+    await call_py.change_stream(chat_id, AudioPiped(song))
+    await message.reply(f"Forcing to play {song} now!")
+
+@app.on_message(filters.command("seek"))
+async def seek(client: Client, message: Message):
+    await message.reply("How many seconds to fast-forward?")
+    response = await app.listen(message.chat.id)
+    seconds = int(response.text)
+    chat_id = message.chat.id
+    await call_py.seek(chat_id, seconds)
+    await message.reply(f"Fast-forwarded {seconds} seconds.")
+
+@app.on_message(filters.command("seekback"))
+async def seekback(client: Client, message: Message):
+    await message.reply("How many seconds to seek back?")
+    response = await app.listen(message.chat.id)
+    seconds = int(response.text)
+    chat_id = message.chat.id
+    await call_py.seek(chat_id, -seconds)
+    await message.reply(f"Rewinded {seconds} seconds.")
+
+@app.on_message(filters.command("pause"))
+async def pause(client: Client, message: Message):
+    chat_id = message.chat.id
+    await call_py.pause_stream(chat_id)
+    await message.reply("Paused the song.")
+
+@app.on_message(filters.command("resume"))
+async def resume(client: Client, message: Message):
+    chat_id = message.chat.id
+    await call_py.resume_stream(chat_id)
+    await message.reply("Resumed the song.")
+
+@app.on_message(filters.command("queue"))
+async def show_queue(client: Client, message: Message):
+    if len(queue) == 0:
+        await message.reply("No songs in the queue.")
+    else:
+        queue_list = "\n".join([f"{i+1}. {song}" for i, song in enumerate(queue)])
+        await message.reply(f"Current queue:\n{queue_list}")
+
+async def start_bot():
+    await app.start()
+    await call_py.start()
+    print("Bot is running...")
+    await idle()
+
+if __name__ == "__main__":
+    asyncio.run(start_bot())# Auto detect text files and perform LF normalization
+
